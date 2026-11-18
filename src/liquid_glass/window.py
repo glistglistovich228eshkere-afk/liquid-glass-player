@@ -1,4 +1,4 @@
-"""Main window: library list, now-playing panel, visualizer, equalizer and mini mode."""
+"""Main window: library list, online search, now-playing panel, visualizer, EQ and mini mode."""
 
 from __future__ import annotations
 
@@ -12,7 +12,8 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, GdkPixbuf, GLib, Gtk, Pango  # noqa: E402
 
 from .engine import SPECTRUM_BANDS, Engine  # noqa: E402
-from .library import CONFIG_FILE, Track, extract_art, scan  # noqa: E402
+from .jamendo import JamendoError, fetch_bytes, load_client_id, search_tracks  # noqa: E402
+from .library import CONFIG_FILE, Track, extract_art, load_online, save_online, scan  # noqa: E402
 
 EQ_LABELS = ["29", "59", "119", "237", "474", "947", "1.9k", "3.8k", "7.5k", "15k"]
 DEFAULT_SIZE = (980, 640)
@@ -90,8 +91,11 @@ class MainWindow(Adw.ApplicationWindow):
         super().__init__(application=app, title="Liquid Glass")
         self.set_default_size(*DEFAULT_SIZE)
         self.engine = engine
-        self.tracks: list[Track] = []
+        self.online_tracks: list[Track] = load_online()
+        self.tracks: list[Track] = list(self.online_tracks)
         self.visible: list[Track] = []
+        self.online_results: list[Track] = []
+        self.online_mode = False
         self.add_css_class("glass-window")
 
         self._build_ui()
@@ -101,6 +105,7 @@ class MainWindow(Adw.ApplicationWindow):
         engine.on("spectrum", self.viz.set_magnitudes)
         engine.on("error", lambda message: self.toast(f"Playback error: {message}"))
         GLib.timeout_add(250, self._tick_position)
+        self._apply_filter()
 
     # ------------------------------------------------------------------ build
 
@@ -110,10 +115,17 @@ class MainWindow(Adw.ApplicationWindow):
         open_btn = self._glass_button("folder-open-symbolic", "Add music folder", self._on_open_clicked)
         self.header.pack_start(open_btn)
 
-        self.search = Gtk.SearchEntry(placeholder_text="Search artist, album, title")
+        self.search = Gtk.SearchEntry(placeholder_text="Search your library")
         self.search.set_hexpand(True)
-        self.search.connect("search-changed", lambda *_: self._apply_filter())
+        self.search.connect("search-changed", self._on_search_changed)
+        self.search.connect("activate", lambda *_: self._on_search_activate())
         self.header.set_title_widget(self.search)
+
+        self.online_btn = Gtk.ToggleButton(label="Jamendo")
+        self.online_btn.set_tooltip_text("Search Jamendo online (type, then press Enter)")
+        self.online_btn.add_css_class("glass-button")
+        self.online_btn.connect("toggled", lambda b: self.set_online_mode(b.get_active()))
+        self.header.pack_end(self.online_btn)
 
         self.mini_btn = Gtk.ToggleButton()
         self.mini_btn.set_icon_name("view-restore-symbolic")
@@ -163,7 +175,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.title_lbl.set_ellipsize(Pango.EllipsizeMode.END)
         self.title_lbl.add_css_class("np-title")
 
-        self.meta_lbl = Gtk.Label(label="Add a music folder to begin")
+        self.meta_lbl = Gtk.Label(label="Add a music folder or search Jamendo to begin")
         self.meta_lbl.set_xalign(0)
         self.meta_lbl.set_ellipsize(Pango.EllipsizeMode.END)
         self.meta_lbl.add_css_class("np-artist")
@@ -200,8 +212,7 @@ class MainWindow(Adw.ApplicationWindow):
         spacer.set_hexpand(True)
         controls.append(spacer)
 
-        volume_icon = Gtk.Image.new_from_icon_name("audio-volume-high-symbolic")
-        controls.append(volume_icon)
+        controls.append(Gtk.Image.new_from_icon_name("audio-volume-high-symbolic"))
         self.volume = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 1, 0.01)
         self.volume.set_draw_value(False)
         self.volume.set_size_request(120, -1)
@@ -277,6 +288,51 @@ class MainWindow(Adw.ApplicationWindow):
             self.remove_css_class("mini")
             self.set_default_size(*DEFAULT_SIZE)
 
+    def set_online_mode(self, online: bool) -> None:
+        self.online_mode = online
+        if online:
+            self.search.set_placeholder_text("Search Jamendo, then press Enter")
+            self._show(self.online_results)
+        else:
+            self.search.set_placeholder_text("Search your library")
+            self._apply_filter()
+
+    def _on_search_changed(self, _entry) -> None:
+        if not self.online_mode:
+            self._apply_filter()
+
+    def _on_search_activate(self) -> None:
+        if self.online_mode:
+            self._run_online_search()
+
+    def _run_online_search(self) -> None:
+        query = self.search.get_text().strip()
+        if not query:
+            self.toast("Type something to search for")
+            return
+        client_id = load_client_id()
+        if not client_id:
+            self.toast("Add your Jamendo client ID to ~/.config/liquid-glass/jamendo_client_id")
+            return
+        self.toast("Searching Jamendo…")
+
+        def worker() -> None:
+            try:
+                results = search_tracks(query, client_id)
+            except JamendoError as exc:
+                GLib.idle_add(self.toast, f"Jamendo search failed: {exc}")
+                return
+            GLib.idle_add(self._set_online_results, results)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _set_online_results(self, results: list[Track]) -> bool:
+        self.online_results = results
+        self.toast(f"{len(results)} results from Jamendo")
+        if self.online_mode:
+            self._show(results)
+        return GLib.SOURCE_REMOVE
+
     def _on_open_clicked(self, _button) -> None:
         dialog = Gtk.FileDialog()
         dialog.set_title("Choose your music folder")
@@ -301,15 +357,20 @@ class MainWindow(Adw.ApplicationWindow):
         threading.Thread(target=worker, daemon=True).start()
 
     def _set_tracks(self, tracks: list[Track]) -> bool:
-        self.tracks = tracks
+        self.tracks = list(tracks) + list(self.online_tracks)
         self.toast(f"{len(tracks)} tracks loaded")
-        self._apply_filter()
+        if not self.online_mode:
+            self._apply_filter()
         return GLib.SOURCE_REMOVE
 
     def _apply_filter(self) -> None:
         words = self.search.get_text().lower().split()
-        self.visible = [t for t in self.tracks if all(w in t.haystack for w in words)]
+        filtered = [t for t in self.tracks if all(w in t.haystack for w in words)]
+        self._show(filtered)
 
+    def _show(self, tracks: list[Track]) -> None:
+        """Rebuild the list with ``tracks``; this list is also the playback queue."""
+        self.visible = list(tracks)
         child = self.listbox.get_first_child()
         while child is not None:
             following = child.get_next_sibling()
@@ -320,8 +381,10 @@ class MainWindow(Adw.ApplicationWindow):
             self.listbox.append(self._make_row(track))
         self._highlight_current()
 
-    @staticmethod
-    def _make_row(track: Track) -> Gtk.ListBoxRow:
+    def _in_library(self, track: Track) -> bool:
+        return track in self.tracks
+
+    def _make_row(self, track: Track) -> Gtk.ListBoxRow:
         row = Gtk.ListBoxRow()
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=14)
         box.set_margin_top(6)
@@ -348,8 +411,30 @@ class MainWindow(Adw.ApplicationWindow):
 
         box.append(number)
         box.append(text)
+
+        if self.online_mode:
+            if self._in_library(track):
+                saved = Gtk.Label(label="In library")
+                saved.add_css_class("dim")
+                box.append(saved)
+            else:
+                add = Gtk.Button.new_from_icon_name("list-add-symbolic")
+                add.set_tooltip_text("Add to library")
+                add.add_css_class("glass-button")
+                add.connect("clicked", lambda _b, t=track: self._add_to_library(t))
+                box.append(add)
+
         row.set_child(box)
         return row
+
+    def _add_to_library(self, track: Track) -> None:
+        if self._in_library(track):
+            return
+        self.online_tracks.append(track)
+        self.tracks.append(track)
+        save_online(self.online_tracks)
+        self.toast(f"Added {track.title} to your library")
+        self._show(self.visible)
 
     def _on_row_activated(self, _listbox, row: Gtk.ListBoxRow) -> None:
         index = row.get_index()
@@ -376,9 +461,29 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_track(self, track: Track) -> None:
         self.title_lbl.set_label(track.title)
         self.meta_lbl.set_label(f"{track.artist} — {track.album}")
-        self.art.set_paintable(make_art_texture(extract_art(Path(track.path))))
         self.set_title(f"{track.title} — Liquid Glass")
+        if track.is_remote:
+            self.art.set_paintable(None)
+            if track.art_url:
+                self._load_remote_art(track)
+        else:
+            self.art.set_paintable(make_art_texture(extract_art(Path(track.path))))
         self._highlight_current()
+
+    def _load_remote_art(self, track: Track) -> None:
+        def worker() -> None:
+            try:
+                data = fetch_bytes(track.art_url)
+            except Exception:
+                return
+            GLib.idle_add(self._apply_art, track, data)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _apply_art(self, track: Track, data: bytes) -> bool:
+        if self.engine.current == track:
+            self.art.set_paintable(make_art_texture(data))
+        return GLib.SOURCE_REMOVE
 
     def _on_state(self, status: str) -> None:
         playing = status == "Playing"

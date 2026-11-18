@@ -1,9 +1,10 @@
-"""Local music library: folder scanning, tag parsing and embedded artwork."""
+"""Local music library: folder scanning, tag parsing, embedded artwork and saved online tracks."""
 
 from __future__ import annotations
 
+import json
 import os
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
 import mutagen
@@ -11,23 +12,29 @@ import mutagen
 AUDIO_EXTENSIONS = {".flac", ".mp3", ".ogg", ".oga", ".opus", ".wav"}
 
 # Remembers the last chosen music folder between launches.
-CONFIG_FILE = (
-    Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-    / "liquid-glass"
-    / "folder"
-)
+CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "liquid-glass"
+CONFIG_FILE = CONFIG_DIR / "folder"
+# Tracks added from online sources (e.g. Jamendo) are saved here.
+ONLINE_FILE = CONFIG_DIR / "online.json"
 
 
 @dataclass(frozen=True)
 class Track:
-    path: str
+    path: str  # local file path, or an http(s) stream URL for online tracks
     title: str
     artist: str
     album: str
     number: int
+    art_url: str = ""
+
+    @property
+    def is_remote(self) -> bool:
+        return self.path.startswith(("http://", "https://"))
 
     @property
     def uri(self) -> str:
+        if self.is_remote:
+            return self.path
         return Path(self.path).as_uri()
 
     @property
@@ -101,3 +108,22 @@ def extract_art(path: Path) -> bytes | None:
         if frames:
             return frames[0].data
     return None
+
+
+def load_online() -> list[Track]:
+    """Load online tracks previously added to the library."""
+    try:
+        items = json.loads(ONLINE_FILE.read_text())
+    except (OSError, json.JSONDecodeError):
+        return []
+    known = {f.name for f in fields(Track)}
+    tracks = []
+    for item in items if isinstance(items, list) else []:
+        if isinstance(item, dict):
+            tracks.append(Track(**{k: v for k, v in item.items() if k in known}))
+    return tracks
+
+
+def save_online(tracks: list[Track]) -> None:
+    ONLINE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    ONLINE_FILE.write_text(json.dumps([asdict(t) for t in tracks], indent=2))
