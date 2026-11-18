@@ -19,22 +19,24 @@ depends=(
   'gst-libav'
 )
 makedepends=(
+  'git'
   'python-build'
   'python-installer'
   'python-setuptools'
   'python-wheel'
 )
-# Requires a git tag named v$pkgver in the upstream repository.
-source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+# Builds from the main branch, so no release tag is needed.
+# To pin a release later, use: source=("git+$url.git#tag=v$pkgver")
+source=("git+$url.git#branch=main")
 sha256sums=('SKIP')
 
 build() {
-  cd "$srcdir/$pkgname-$pkgver"
+  cd "$srcdir/$pkgname"
   python -m build --wheel --no-isolation
 }
 
 package() {
-  cd "$srcdir/$pkgname-$pkgver"
+  cd "$srcdir/$pkgname"
   python -m installer --destdir="$pkgdir" dist/*.whl
 
   install -Dm644 data/liquid-glass.desktop \
