@@ -12,6 +12,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, GdkPixbuf, GLib, Gtk, Pango  # noqa: E402
 
 from .engine import SPECTRUM_BANDS, Engine  # noqa: E402
+from .fuzzy import score  # noqa: E402
 from .jamendo import JamendoError, fetch_bytes, load_client_id, search_tracks  # noqa: E402
 from .library import CONFIG_FILE, Track, extract_art, load_online, save_online, scan  # noqa: E402
 
@@ -364,8 +365,17 @@ class MainWindow(Adw.ApplicationWindow):
         return GLib.SOURCE_REMOVE
 
     def _apply_filter(self) -> None:
-        words = self.search.get_text().lower().split()
-        filtered = [t for t in self.tracks if all(w in t.haystack for w in words)]
+        query = self.search.get_text().strip()
+        if not query:
+            filtered = list(self.tracks)
+        else:
+            scored = []
+            for track in self.tracks:
+                match = score(query, track.haystack)
+                if match > 0:
+                    scored.append((match, track))
+            scored.sort(key=lambda pair: -pair[0])  # stable: library order breaks ties
+            filtered = [track for _, track in scored]
         self._show(filtered)
 
     def _show(self, tracks: list[Track]) -> None:
