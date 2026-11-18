@@ -1,0 +1,27 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Liquid Glass
+GenericName=Music Player
+Comment=Minimalist monochrome liquid-glass music player
+Exec=liquid-glass %U
+Icon=audio-x-generic
+Terminal=false
+Categories=GNOME;GTK;AudioVideo;Audio;Player;
+MimeType=audio/flac;audio/mpeg;audio/ogg;audio/opus;audio/x-wav;
+Keywords=music;player;audio;flac;mp3;opus;ogg;
+StartupNotify=true
+StartupWMClass=io.github.liquidglass.Player
+Actions=PlayPause;Next;Previous;
+
+[Desktop Action PlayPause]
+Name=Play / Pause
+Exec=liquid-glass --play-pause
+
+[Desktop Action Next]
+Name=Next Track
+Exec=liquid-glass --next
+
+[Desktop Action Previous]
+Name=Previous Track
+Exec=liquid-glass --previous

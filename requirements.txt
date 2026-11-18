@@ -1,0 +1,5 @@
+# Runtime Python dependencies.
+# GTK4, libadwaita, GObject introspection and GStreamer are system libraries;
+# install them with your distro's package manager (see README.md).
+mutagen>=1.47
+PyGObject>=3.46

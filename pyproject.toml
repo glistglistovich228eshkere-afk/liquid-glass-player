@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "liquid-glass-player"
+version = "0.1.0"
+description = "A minimalist monochrome 'Liquid Glass' music player for Linux (GTK4 + Libadwaita + GStreamer)"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "glist" }]
+keywords = ["music", "player", "gtk4", "libadwaita", "gstreamer", "mpris", "linux"]
+classifiers = [
+    "Operating System :: POSIX :: Linux",
+    "Environment :: X11 Applications :: GTK",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+]
+# PyGObject is provided by the system (python3-gi / python-gobject / python3-gobject).
+dependencies = [
+    "mutagen>=1.47",
+    "PyGObject>=3.46",
+]
+
+[project.scripts]
+liquid-glass = "liquid_glass.app:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+liquid_glass = ["style.css"]
