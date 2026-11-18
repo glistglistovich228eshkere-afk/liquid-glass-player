@@ -1,6 +1,6 @@
 # Maintainer: glist
 pkgname=liquid-glass-player
-pkgver=0.1.0
+pkgver=1.0.0
 pkgrel=1
 pkgdesc="Minimalist monochrome liquid-glass music player (GTK4 + Libadwaita + GStreamer)"
 arch=('any')
@@ -17,6 +17,7 @@ depends=(
   'gst-plugins-good'
   'gst-plugins-bad'
   'gst-libav'
+  'curl'
 )
 makedepends=(
   'git'
@@ -39,6 +40,7 @@ package() {
   cd "$srcdir/$pkgname"
   python -m installer --destdir="$pkgdir" dist/*.whl
 
+  install -Dm755 data/liquid-glass-update "$pkgdir/usr/bin/liquid-glass-update"
   install -Dm644 data/liquid-glass.desktop \
     "$pkgdir/usr/share/applications/liquid-glass.desktop"
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"

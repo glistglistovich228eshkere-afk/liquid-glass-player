@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "liquid-glass-player"
-version = "0.1.0"
+version = "1.0.0"
 description = "A minimalist monochrome 'Liquid Glass' music player for Linux (GTK4 + Libadwaita + GStreamer)"
 readme = "README.md"
 license = { text = "MIT" }

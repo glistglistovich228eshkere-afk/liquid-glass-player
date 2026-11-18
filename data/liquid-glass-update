@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Updates Liquid Glass to the newest version on GitHub and reinstalls it.
+set -uo pipefail
+
+REPO_URL="https://github.com/glistglistovich228eshkere-afk/liquid-glass-player.git"
+RAW_INIT="https://raw.githubusercontent.com/glistglistovich228eshkere-afk/liquid-glass-player/main/src/liquid_glass/__init__.py"
+
+pause() { read -rp "Press Enter to close..." _; }
+
+installed=$(pacman -Q liquid-glass-player 2>/dev/null | awk '{print $2}' | sed 's/-[0-9]*$//')
+latest=$(curl -fsSL "$RAW_INIT" | sed -n 's/^__version__ = "\(.*\)"/\1/p')
+
+if [ -z "$latest" ]; then
+    echo "Could not reach GitHub. Check your internet connection."
+    pause
+    exit 1
+fi
+
+echo "Installed: ${installed:-none}   Latest: $latest"
+if [ "$installed" = "$latest" ]; then
+    echo "Liquid Glass is already up to date."
+    pause
+    exit 0
+fi
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+if ! git clone --depth 1 "$REPO_URL" "$work/liquid-glass-player"; then
+    echo "Download failed."
+    pause
+    exit 1
+fi
+
+cd "$work/liquid-glass-player" || exit 1
+if makepkg -si --noconfirm; then
+    echo "Updated to $latest. Restart Liquid Glass to use it."
+else
+    echo "Update failed. See the messages above."
+fi
+pause
