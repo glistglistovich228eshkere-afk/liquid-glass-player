@@ -5,14 +5,15 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass
 
+from .i18n import LANGUAGE_CHOICES
 from .library import CONFIG_DIR
 
 SETTINGS_FILE = CONFIG_DIR / "settings.json"
 
-# theme key -> (label shown in settings, stylesheet file)
+# theme key -> (display name key, stylesheet file)
 THEMES = {
-    "liquid-glass": ("Liquid Glass", "style.css"),
-    "plain": ("Plain dark", "style-plain.css"),
+    "liquid-glass": ("theme_liquid_glass", "style.css"),
+    "plain": ("theme_plain", "style-plain.css"),
 }
 THEME_ORDER = ["liquid-glass", "plain"]
 DEFAULT_THEME = "liquid-glass"
@@ -24,6 +25,7 @@ class Settings:
     username: str = ""
     display_name: str = ""
     avatar: str = ""
+    language: str = "auto"
 
 
 def _text(data: dict, key: str, limit: int) -> str:
@@ -39,11 +41,13 @@ def load_settings() -> Settings:
     if not isinstance(data, dict):
         return Settings()
     theme = data.get("theme")
+    language = data.get("language")
     return Settings(
         theme=theme if theme in THEMES else DEFAULT_THEME,
         username=_text(data, "username", 32),
         display_name=_text(data, "display_name", 64),
         avatar=_text(data, "avatar", 4096),
+        language=language if language in LANGUAGE_CHOICES else "auto",
     )
 
 
