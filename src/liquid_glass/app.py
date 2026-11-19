@@ -1,4 +1,4 @@
-"""Application entry point: actions, shortcuts, themes, settings, updates and window lifecycle."""
+"""Application entry point: actions, shortcuts, themes, settings, profile, updates and window lifecycle."""
 
 from __future__ import annotations
 
@@ -80,8 +80,13 @@ class LiquidGlassApp(Adw.Application):
             self.settings,
             self._apply_theme,
             lambda: self.window._on_open_clicked(None),
+            self._on_profile_changed,
         )
         dialog.present()
+
+    def _on_profile_changed(self, settings: Settings) -> None:
+        if self.window is not None:
+            self.window.refresh_profile(settings)
 
     def _on_activate(self, _app) -> None:
         if self.window is None:

@@ -1,4 +1,4 @@
-"""Main window: library list, online search, now-playing panel, visualizer, EQ, settings and mini mode."""
+"""Main window: library list, online search, now-playing panel, visualizer, EQ, profile, settings and mini mode."""
 
 from __future__ import annotations
 
@@ -15,6 +15,8 @@ from .engine import SPECTRUM_BANDS, Engine  # noqa: E402
 from .fuzzy import score  # noqa: E402
 from .jamendo import JamendoError, fetch_bytes, load_client_id, search_tracks  # noqa: E402
 from .library import CONFIG_FILE, Track, extract_art, load_online, save_online, scan  # noqa: E402
+from .profile import load_avatar_paintable  # noqa: E402
+from .settings import Settings  # noqa: E402
 
 EQ_LABELS = ["29", "59", "119", "237", "474", "947", "1.9k", "3.8k", "7.5k", "15k"]
 DEFAULT_SIZE = (980, 640)
@@ -100,6 +102,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.add_css_class("glass-window")
 
         self._build_ui()
+        self.refresh_profile(app.settings)
 
         engine.on("track-changed", self._on_track)
         engine.on("state", self._on_state)
@@ -121,6 +124,15 @@ class MainWindow(Adw.ApplicationWindow):
         self.search.connect("search-changed", self._on_search_changed)
         self.search.connect("activate", lambda *_: self._on_search_activate())
         self.header.set_title_widget(self.search)
+
+        self.profile_btn = Gtk.Button()
+        self.profile_btn.add_css_class("flat")
+        self.profile_btn.connect("clicked", lambda *_: self.get_application().activate_action("settings", None))
+        self.avatar = Adw.Avatar()
+        self.avatar.set_size(26)
+        self.avatar.set_show_initials(True)
+        self.profile_btn.set_child(self.avatar)
+        self.header.pack_end(self.profile_btn)
 
         settings_btn = self._glass_button(
             "emblem-system-symbolic",
@@ -280,6 +292,12 @@ class MainWindow(Adw.ApplicationWindow):
         return button
 
     # ----------------------------------------------------------- behaviour
+
+    def refresh_profile(self, settings: Settings) -> None:
+        name = settings.display_name or settings.username
+        self.avatar.set_text(name)
+        self.avatar.set_custom_image(load_avatar_paintable(settings.avatar))
+        self.profile_btn.set_tooltip_text(name or "Profile")
 
     def toast(self, message: str) -> None:
         self.toasts.add_toast(Adw.Toast.new(message))

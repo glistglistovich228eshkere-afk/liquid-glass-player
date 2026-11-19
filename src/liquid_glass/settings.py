@@ -21,6 +21,14 @@ DEFAULT_THEME = "liquid-glass"
 @dataclass
 class Settings:
     theme: str = DEFAULT_THEME
+    username: str = ""
+    display_name: str = ""
+    avatar: str = ""
+
+
+def _text(data: dict, key: str, limit: int) -> str:
+    value = data.get(key)
+    return value[:limit] if isinstance(value, str) else ""
 
 
 def load_settings() -> Settings:
@@ -28,8 +36,15 @@ def load_settings() -> Settings:
         data = json.loads(SETTINGS_FILE.read_text())
     except (OSError, json.JSONDecodeError):
         return Settings()
-    theme = data.get("theme") if isinstance(data, dict) else None
-    return Settings(theme=theme if theme in THEMES else DEFAULT_THEME)
+    if not isinstance(data, dict):
+        return Settings()
+    theme = data.get("theme")
+    return Settings(
+        theme=theme if theme in THEMES else DEFAULT_THEME,
+        username=_text(data, "username", 32),
+        display_name=_text(data, "display_name", 64),
+        avatar=_text(data, "avatar", 4096),
+    )
 
 
 def save_settings(settings: Settings) -> None:
