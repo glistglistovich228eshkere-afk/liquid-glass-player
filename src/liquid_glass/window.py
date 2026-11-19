@@ -1,4 +1,4 @@
-"""Main window: library list, online search, now-playing panel, visualizer, EQ and mini mode."""
+"""Main window: library list, online search, now-playing panel, visualizer, EQ, settings and mini mode."""
 
 from __future__ import annotations
 
@@ -121,6 +121,13 @@ class MainWindow(Adw.ApplicationWindow):
         self.search.connect("search-changed", self._on_search_changed)
         self.search.connect("activate", lambda *_: self._on_search_activate())
         self.header.set_title_widget(self.search)
+
+        settings_btn = self._glass_button(
+            "emblem-system-symbolic",
+            "Settings (Ctrl+,)",
+            lambda *_: self.get_application().activate_action("settings", None),
+        )
+        self.header.pack_end(settings_btn)
 
         self.online_btn = Gtk.ToggleButton(label="Jamendo")
         self.online_btn.set_tooltip_text("Search Jamendo online (type, then press Enter)")
@@ -313,7 +320,7 @@ class MainWindow(Adw.ApplicationWindow):
             return
         client_id = load_client_id()
         if not client_id:
-            self.toast("Add your Jamendo client ID to ~/.config/liquid-glass/jamendo_client_id")
+            self.toast("Add your Jamendo client ID in Settings")
             return
         self.toast("Searching Jamendo…")
 

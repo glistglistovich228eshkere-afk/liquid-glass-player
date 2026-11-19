@@ -2,6 +2,11 @@
 
 All notable changes to Liquid Glass are listed here. Versions follow semantic versioning (MAJOR.MINOR.PATCH).
 
+## 1.1.0
+
+- Settings window (gear icon or Ctrl+,) with a Theme option: Liquid Glass (default) or Plain dark.
+- Jamendo client ID and music folder can be changed from Settings.
+
 ## 1.0.0
 
 - Monochrome liquid-glass interface with a spectrum visualizer, mini mode and 10-band equalizer.

@@ -1,4 +1,4 @@
-"""Application entry point: actions, shortcuts, notifications, updates and window lifecycle."""
+"""Application entry point: actions, shortcuts, themes, settings, updates and window lifecycle."""
 
 from __future__ import annotations
 
@@ -16,32 +16,40 @@ from . import __version__  # noqa: E402
 from .engine import Engine  # noqa: E402
 from .library import CONFIG_FILE, Track  # noqa: E402
 from .mpris import MprisService  # noqa: E402
+from .settings import THEMES, Settings, load_settings  # noqa: E402
+from .settings_dialog import SettingsWindow  # noqa: E402
 from .updater import launch_update, newer_version_available  # noqa: E402
 from .window import MainWindow  # noqa: E402
 
 APP_ID = "io.github.liquidglass.Player"
-STYLE_PATH = Path(__file__).with_name("style.css")
+PACKAGE_DIR = Path(__file__).parent
 
 
 class LiquidGlassApp(Adw.Application):
     def __init__(self) -> None:
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
         self.engine = Engine()
+        self.settings: Settings = load_settings()
         self.window: MainWindow | None = None
         self.mpris: MprisService | None = None
+        self._theme_provider: Gtk.CssProvider | None = None
         self.connect("startup", self._on_startup)
         self.connect("activate", self._on_activate)
         self.connect("shutdown", lambda *_: self.engine.stop())
 
     def _on_startup(self, _app) -> None:
         Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.FORCE_DARK)
-
-        provider = Gtk.CssProvider()
-        provider.load_from_path(str(STYLE_PATH))
-        Gtk.StyleContext.add_provider_for_display(
-            Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        )
+        self._apply_theme(self.settings.theme)
         self._install_actions()
+
+    def _apply_theme(self, key: str) -> None:
+        display = Gdk.Display.get_default()
+        if self._theme_provider is not None:
+            Gtk.StyleContext.remove_provider_for_display(display, self._theme_provider)
+        provider = Gtk.CssProvider()
+        provider.load_from_path(str(PACKAGE_DIR / THEMES[key][1]))
+        Gtk.StyleContext.add_provider_for_display(display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        self._theme_provider = provider
 
     def _install_actions(self) -> None:
         bindings = [
@@ -49,6 +57,7 @@ class LiquidGlassApp(Adw.Application):
             ("next-track", self.engine.next, "<Control>Right"),
             ("previous-track", self.engine.previous, "<Control>Left"),
             ("toggle-mini", self._toggle_mini, "<Control>m"),
+            ("settings", self.open_settings, "<Control>comma"),
             ("quit", self.quit, "<Control>q"),
             ("update", self._start_update, None),
         ]
@@ -62,6 +71,17 @@ class LiquidGlassApp(Adw.Application):
     def _toggle_mini(self) -> None:
         if self.window is not None:
             self.window.toggle_mini()
+
+    def open_settings(self) -> None:
+        if self.window is None:
+            return
+        dialog = SettingsWindow(
+            self.window,
+            self.settings,
+            self._apply_theme,
+            lambda: self.window._on_open_clicked(None),
+        )
+        dialog.present()
 
     def _on_activate(self, _app) -> None:
         if self.window is None:

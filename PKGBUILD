@@ -1,6 +1,6 @@
 # Maintainer: glist
 pkgname=liquid-glass-player
-pkgver=1.0.0
+pkgver=1.1.0
 pkgrel=1
 pkgdesc="Minimalist monochrome liquid-glass music player (GTK4 + Libadwaita + GStreamer)"
 arch=('any')
